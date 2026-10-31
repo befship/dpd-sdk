@@ -1,0 +1,17 @@
+# DPD Baltics (eServiss) OpenAPI manifest.
+# Official JSON is never committed — downloaded or supplied at generate time.
+#
+# Override:
+#   SPEC_URL=https://... make generate
+#   SPEC_LOCAL=/path/to/openapi.json make generate
+#   FORCE_FETCH=1 make generate
+
+package: eserviss
+server_sandbox: https://sandbox-eserviss.dpd.lv/api/v1
+server_prod: https://eserviss.dpd.lv/api/v1
+server_lt: https://esiunta.dpd.lt/api/v1
+server_ee: https://telli.dpd.ee/api/v1
+
+spec_urls:
+  - https://eserviss.dpd.lv/docs?api=json
+  - https://eserviss.dpd.lv/docs?api-docs.json

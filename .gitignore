@@ -1,0 +1,21 @@
+# DPD official OpenAPI — never commit (fetched / supplied at generate time)
+.cache/
+specs/
+*.yaml.bak
+*.json.bak
+openapi.local.yml
+openapi.local.yaml
+openapi.local.json
+
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.exe
+bin/
+dist/
+coverage.out
+coverage.html
+__pycache__/
+*.pyc
+.venv/
