@@ -1,6 +1,6 @@
 package dpdlv
 
-import eserviss "github.com/befship/dpdlv-sdk/internal/generated/eserviss"
+import eserviss "github.com/befship/dpd-sdk/internal/generated/eserviss"
 
 // Generated client + request/response types re-exported for stable imports.
 type (

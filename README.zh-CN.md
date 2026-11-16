@@ -1,30 +1,23 @@
-# dpdlv-sdk
+# dpd-sdk
 
 [English](./README.md) | 中文
 
-非官方 Go SDK，面向 [DPD Baltics eServiss](https://eserviss.dpd.lv/api/)（LV/LT/EE）。从官方 OpenAPI 生成客户端，并提供 token 鉴权、重试与稳定 facade。
+BefShip 使用的 **DPD / Geopost 各国开放接口** 非官方 Go SDK。
 
-> **与 DPD 无隶属关系。** 需自备 eServiss 账号。见 [DISCLAIMER.md](./DISCLAIMER.md)。
+> **与 DPD 无隶属关系。** 需自备账号凭证。见 [DISCLAIMER.md](./DISCLAIMER.md)。
 
-## 布局
+## 包一览
 
-| 路径 | 作用 |
-|------|------|
-| `dpdlv/` | 手写 facade |
-| `internal/generated/eserviss/` | `oapi-codegen` 产物（已提交） |
-| `scripts/` + `generate.sh` | 拉取官方 JSON → 预处理 → 生成 |
-| `.cache/specs/` | 下载的 OpenAPI（**不入库**） |
+| 包 | 17TRACK | 接口 |
+|----|---------|------|
+| `dpdlv` | LV / LT / EE | Baltics eServiss（`Market=lv\|lt\|ee`） |
+| `dpduk` | UK / DPD Local / IE domestic | [UK developer portal](https://developers.api.dpd.co.uk/) |
+| `catalog` | 全部 17TRACK DPD 品牌 key | 仅映射；标明是否已实现发货客户端 |
+
+DE/FR/PL/NL 等国别门户 API 不同，目前只在 `catalog` 登记，未实现发货客户端。
 
 ## 安装
 
 ```bash
-go get github.com/befship/dpdlv-sdk@latest
-```
-
-## 重新生成
-
-```bash
-make generate
-FORCE_FETCH=1 make generate
-SPEC_LOCAL=/path/to/openapi.json make generate
+go get github.com/befship/dpd-sdk@latest
 ```

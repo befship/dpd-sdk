@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/befship/dpdlv-sdk/dpdlv"
+	"github.com/befship/dpd-sdk/dpdlv"
 )
 
 func main() {

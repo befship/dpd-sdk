@@ -1,4 +1,4 @@
-module github.com/befship/dpdlv-sdk
+module github.com/befship/dpd-sdk
 
 go 1.25
 

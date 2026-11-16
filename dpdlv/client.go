@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	eserviss "github.com/befship/dpdlv-sdk/internal/generated/eserviss"
+	eserviss "github.com/befship/dpd-sdk/internal/generated/eserviss"
 )
 
 const (
@@ -15,14 +15,20 @@ const (
 	EnvSandbox = "sandbox"
 	// EnvProduction is the DPD eServiss production environment.
 	EnvProduction = "production"
+
+	// Market codes for Baltics eServiss hosts (17TRACK: LV=100809, LT=100810, EE=100808).
+	MarketLV = "lv"
+	MarketLT = "lt"
+	MarketEE = "ee"
 )
 
-// Config holds DPD LV credentials and runtime options.
+// Config holds DPD Baltics credentials and runtime options.
 type Config struct {
 	Username    string
 	Password    string
 	Token       string // optional static Bearer; skips /auth/tokens
 	Environment string // sandbox (default) | production
+	Market      string // lv (default) | lt | ee — production host selection
 	BaseURL     string // optional override (trims trailing slash)
 
 	HTTPClient *http.Client
@@ -43,6 +49,7 @@ type Creds struct {
 	Password    string
 	Token       string
 	Environment string
+	Market      string // lv | lt | ee
 	BaseURL     string
 }
 
@@ -64,6 +71,7 @@ func New(cfg Config) *Client {
 	case "prod", EnvProduction:
 		cfg.Environment = EnvProduction
 	}
+	cfg.Market = NormalizeMarket(cfg.Market)
 	if cfg.MaxRetries < 0 {
 		cfg.MaxRetries = 0
 	} else if cfg.MaxRetries == 0 {
@@ -82,6 +90,18 @@ func New(cfg Config) *Client {
 	return c
 }
 
+// NormalizeMarket maps aliases to lv|lt|ee (default lv).
+func NormalizeMarket(market string) string {
+	switch strings.ToLower(strings.TrimSpace(market)) {
+	case MarketLT, "lithuania":
+		return MarketLT
+	case MarketEE, "estonia":
+		return MarketEE
+	default:
+		return MarketLV
+	}
+}
+
 // Environment returns the configured environment name.
 func (c *Client) Environment() string { return c.cfg.Environment }
 
@@ -89,13 +109,28 @@ func (c *Client) Environment() string { return c.cfg.Environment }
 func (c *Client) HTTPClient() *http.Client { return c.http }
 
 // BaseURL returns the DPD eServiss API base for the given environment / override.
+// Prefer BaseURLFor when selecting LT/EE production hosts.
 func BaseURL(env string, override ...string) string {
+	return BaseURLFor(env, MarketLV, override...)
+}
+
+// BaseURLFor resolves eServiss host by environment + Baltics market.
+// Sandbox is always the LV sandbox host; production uses LV/LT/EE country portals.
+func BaseURLFor(env, market string, override ...string) string {
 	if len(override) > 0 && strings.TrimSpace(override[0]) != "" {
 		return strings.TrimRight(strings.TrimSpace(override[0]), "/")
 	}
+	market = NormalizeMarket(market)
 	switch strings.ToLower(strings.TrimSpace(env)) {
 	case EnvProduction, "prod":
-		return "https://eserviss.dpd.lv/api/v1"
+		switch market {
+		case MarketLT:
+			return "https://esiunta.dpd.lt/api/v1"
+		case MarketEE:
+			return "https://telli.dpd.ee/api/v1"
+		default:
+			return "https://eserviss.dpd.lv/api/v1"
+		}
 	default:
 		return "https://sandbox-eserviss.dpd.lv/api/v1"
 	}
@@ -103,7 +138,7 @@ func BaseURL(env string, override ...string) string {
 
 // BaseURLFromCreds resolves the API base from a Creds bundle.
 func BaseURLFromCreds(cr Creds) string {
-	return BaseURL(cr.Environment, cr.BaseURL)
+	return BaseURLFor(cr.Environment, cr.Market, cr.BaseURL)
 }
 
 // BasicAuth returns a RequestEditorFn that sets Basic Authorization + Accept JSON.
@@ -128,19 +163,24 @@ func BearerAuth(token string) RequestEditorFn {
 	}
 }
 
-// Raw builds an unauthenticated generated client for env (or cfg BaseURL).
+// Raw builds an unauthenticated generated client for env (or cfg BaseURL / Market).
 func (c *Client) Raw(env string, baseURL ...string) (*ClientWithResponses, error) {
+	override := ""
+	if len(baseURL) > 0 {
+		override = baseURL[0]
+	}
+	return c.rawFor(env, c.cfg.Market, override)
+}
+
+func (c *Client) rawFor(env, market, override string) (*ClientWithResponses, error) {
 	hc := c.http
 	if hc == nil {
 		hc = &http.Client{Timeout: 60 * time.Second}
 	}
-	override := ""
-	if len(baseURL) > 0 {
-		override = baseURL[0]
-	} else if c.cfg.BaseURL != "" {
+	if strings.TrimSpace(override) == "" {
 		override = c.cfg.BaseURL
 	}
-	return eserviss.NewClientWithResponses(BaseURL(env, override), eserviss.WithHTTPClient(hc))
+	return eserviss.NewClientWithResponses(BaseURLFor(env, market, override), eserviss.WithHTTPClient(hc))
 }
 
 // AccessToken returns a static token or a cached/freshly fetched auth token.
@@ -161,11 +201,16 @@ func (c *Client) AccessToken(ctx context.Context, cr Creds) (string, error) {
 	if env == "" {
 		env = c.cfg.Environment
 	}
-	key := env + ":" + cr.Username
+	market := cr.Market
+	if market == "" {
+		market = c.cfg.Market
+	}
+	market = NormalizeMarket(market)
+	key := env + ":" + market + ":" + cr.Username
 	if tok, ok := c.cache.get(key); ok {
 		return tok, nil
 	}
-	rc, err := c.Raw(env, cr.BaseURL)
+	rc, err := c.rawFor(env, market, cr.BaseURL)
 	if err != nil {
 		return "", err
 	}
@@ -201,7 +246,15 @@ func (c *Client) Authed(ctx context.Context, cr Creds) (*ClientWithResponses, Re
 	if err != nil {
 		return nil, nil, err
 	}
-	rc, err := c.Raw(cr.Environment, cr.BaseURL)
+	env := cr.Environment
+	if env == "" {
+		env = c.cfg.Environment
+	}
+	market := cr.Market
+	if market == "" {
+		market = c.cfg.Market
+	}
+	rc, err := c.rawFor(env, market, cr.BaseURL)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,6 +268,7 @@ func (c *Client) API(ctx context.Context) (*ClientWithResponses, RequestEditorFn
 		Password:    c.cfg.Password,
 		Token:       c.cfg.Token,
 		Environment: c.cfg.Environment,
+		Market:      c.cfg.Market,
 		BaseURL:     c.cfg.BaseURL,
 	})
 }

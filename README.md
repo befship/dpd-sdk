@@ -1,79 +1,66 @@
-# dpdlv-sdk
+# dpd-sdk
 
 English | [中文](./README.zh-CN.md)
 
-Unofficial Go SDK for [DPD Baltics eServiss APIs](https://eserviss.dpd.lv/api/) (LV/LT/EE), generated from the official OpenAPI spec and wrapped with token auth, retries, and a stable facade.
+Unofficial Go SDK for **DPD / Geopost country APIs** used by BefShip.
 
-> **Not affiliated with DPD.** You need your own eServiss credentials. See [DISCLAIMER.md](./DISCLAIMER.md).
+> **Not affiliated with DPD.** You need your own account credentials. See [DISCLAIMER.md](./DISCLAIMER.md).
 
-## Why this layout
+## Packages
+
+| Package | 17TRACK carriers | API |
+|---------|------------------|-----|
+| [`dpdlv`](./dpdlv) | DPD (LV) `100809`, DPD (LT) `100810`, DPD (EE) `100808` | Baltics eServiss OpenAPI (`Market=lv\|lt\|ee`) |
+| [`dpduk`](./dpduk) | DPD (UK) `100010`, DPD Local `100709`, DPD (IE) domestic via UK portal | [developers.api.dpd.co.uk](https://developers.api.dpd.co.uk/) |
+| [`catalog`](./catalog) | Full 17TRACK DPD-branded key table | Mapping only — marks which keys are implemented |
+
+Other 17TRACK DPD brands (DE/FR/PL/NL/…) use **different** national portals; they are listed in `catalog` as not implemented until a dedicated client exists.
+
+## Layout
 
 | Path | Purpose |
 |------|---------|
-| `dpdlv/` | Hand-written facade (Basic→Bearer, env URLs, typed API access, errors) |
-| `internal/generated/eserviss/` | `oapi-codegen` output (committed so `go get` works) |
-| `scripts/` + `generate.sh` | Fetch official JSON → preprocess → generate |
-| `.cache/specs/` | Downloaded OpenAPI (**gitignored**, never commit) |
-
-Official OpenAPI files are **not** stored in git. `make generate` pulls them (or accepts `SPEC_LOCAL` / `SPEC_URL`).
+| `dpdlv/` | Baltics eServiss facade (Basic→Bearer, typed OpenAPI client) |
+| `dpduk/` | UK / DPD Local hand-written REST client (JWT + Client-Id) |
+| `catalog/` | 17TRACK key → package / market map |
+| `internal/generated/eserviss/` | `oapi-codegen` output for Baltics |
+| `scripts/` + `generate.sh` | Fetch Baltics OpenAPI → generate |
 
 ## Install
 
 ```bash
-go get github.com/befship/dpdlv-sdk@latest
+go get github.com/befship/dpd-sdk@latest
 ```
 
-## Quick start
+## Quick start — Baltics (LV/LT/EE)
 
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"os"
-
-	"github.com/befship/dpdlv-sdk/dpdlv"
-)
-
-func main() {
-	client := dpdlv.New(dpdlv.Config{
-		Username:    os.Getenv("DPD_USERNAME"),
-		Password:    os.Getenv("DPD_PASSWORD"),
-		Environment: dpdlv.EnvSandbox,
-	})
-	api, auth, err := client.API(context.Background())
-	if err != nil {
-		panic(err)
-	}
-	_ = api
-	_ = auth
-	fmt.Println("ready", dpdlv.BaseURL(client.Environment()))
-}
+client := dpdlv.New(dpdlv.Config{
+	Username:    os.Getenv("DPD_USERNAME"),
+	Password:    os.Getenv("DPD_PASSWORD"),
+	Environment: dpdlv.EnvSandbox,
+	Market:      dpdlv.MarketLT, // or MarketLV / MarketEE
+})
+api, auth, err := client.API(context.Background())
 ```
 
-## Endpoints
+## Quick start — UK / DPD Local
 
-| Environment | Base URL |
-|---|---|
-| Sandbox | `https://sandbox-eserviss.dpd.lv/api/v1` |
-| Production | `https://eserviss.dpd.lv/api/v1` |
+```go
+c := dpduk.New()
+tok, err := c.GetAccessToken(ctx, dpduk.Creds{
+	APIKey: os.Getenv("DPD_UK_KEY"), APISecret: os.Getenv("DPD_UK_SECRET"),
+	Environment: dpduk.EnvSandbox,
+})
+_ = tok
+```
 
-OAS JSON: `https://eserviss.dpd.lv/docs?api=json`
-
-## Regenerate
+## Regenerate Baltics client
 
 ```bash
 make generate
-
-# Force re-download
-FORCE_FETCH=1 make generate
-
-# Local / alternate URL
-SPEC_LOCAL=/path/to/openapi.json make generate
-SPEC_URL='https://eserviss.dpd.lv/docs?api=json' make generate
 ```
 
 ## License
 
-Hand-written code: MIT. Generated clients: subject to DPD API terms. See `LICENSE` and `DISCLAIMER.md`.
+Hand-written code: MIT. Generated clients: subject to DPD API terms.
